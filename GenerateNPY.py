@@ -3,14 +3,13 @@ import numpy as np
 from PIL import Image
 import cv2
 
-
 def normalization_img(image):
     return (image - np.mean(image)) / np.std(image)
 
 
 label = np.load('/home/lito/PycharmProjects/lungegfr/Sampledata/label.npy')
 
-ct_files = os.listdir('/home/lito/PycharmProjects/lungegfr/Sampledata/Images_Curie/CT')[2:]
+ct_files = sorted(os.listdir('/home/lito/PycharmProjects/lungegfr/Sampledata/Images_Curie/CT'))
 num_files = len(ct_files)
 cts = np.empty((num_files, 64, 64), dtype=np.float64)
 pets = np.empty((num_files, 64, 64), dtype=np.float64)
@@ -42,9 +41,9 @@ for i, file in enumerate(ct_files):
 
 label = label[:num_files]
 
-cts = np.transpose(cts, (0, 2, 1))
-pets = np.transpose(pets, (0, 2, 1))
-fuses = np.transpose(fuses, (0, 2, 1))
+cts = np.transpose(cts, (0, 1, 2))
+pets = np.transpose(pets, (0, 1, 2))
+fuses = np.transpose(fuses, (0, 1, 2))
 
 np.save('/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplect.npy', cts)
 np.save('/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplepet.npy', pets)

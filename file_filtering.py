@@ -221,8 +221,6 @@ def delete_folders_with_characters(folder_path, characters):
     print("Deletion of folders completed successfully.")
 
 
-import os
-
 def load_img(folder, save_dir):
     """
     Loads and displays CT, PET, and segmentation mask images from the specified folder with a slider for slice selection.
@@ -375,16 +373,16 @@ def load_img(folder, save_dir):
             pet_tumor_zoomed = pet_tumor_slice[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end]
             pet_tumor_resized = cv2.resize(pet_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_CUBIC)
             save_path = os.path.join(pet_save_dir, "Slice_{}.png".format(slice_index))
-            plt.imsave(save_path, pet_tumor_resized, cmap='hot', origin='lower', vmin=np.min(seg_data), vmax=np.max(seg_data))
+            plt.imsave(save_path, pet_tumor_resized, cmap='hot', origin='lower', vmin=np.min(seg_data),
+                       vmax=np.max(seg_data))
 
         # Print the indices of the tumor slices
         print("Tumor slice indices:", tumor_slices)
 
+
 # Example usage:
 folder_path = "/home/adamdiakite/Documents/2-21-0004"
 images_curie = "/home/adamdiakite/Documents/lungegfr-master/Sampledata/Images_Curie"
+folder = "/media/lito/LaCie/CT-TEP_Data/"
 
 load_img(folder_path, images_curie)
-# delete_patient_folders_without_segmentation("/media/adamdiakite/LaCie/CT-TEP_Data")
-# copy_segmentation_file(source_directory, destination_directory)
-# copy_image_folders(source_directory, destination_directory)

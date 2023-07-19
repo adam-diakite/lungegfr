@@ -8,14 +8,14 @@ import scipy.io
 
 def load_sampledata():
     img = np.load(
-        "/home/adamdiakite/Documents/lungegfr-master/Sampledata/xpsamplepet.npy")  # Deeplearningallpatchsmalls
+        "/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplepet.npy")  # Deeplearningallpatchsmalls
     datapet = np.asarray(img, dtype="float32")
-    img = np.load("/home/adamdiakite/Documents/lungegfr-master/Sampledata/xpsamplect.npy")  # Deeplearningallpatchsmalls
+    img = np.load("/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplect.npy")  # Deeplearningallpatchsmalls
     datact = np.asarray(img, dtype="float32")
     img = np.load(
-        "/home/adamdiakite/Documents/lungegfr-master/Sampledata/xpsamplefuse.npy")  # Deeplearningallpatchsmalls
+        "/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplefuse.npy")  # Deeplearningallpatchsmalls
     datafuse = np.asarray(img, dtype="float32")
-    y = np.load("/home/adamdiakite/Documents/lungegfr-master/Sampledata/label.npy")
+    y = np.load("/home/lito/PycharmProjects/lungegfr/Sampledata/label.npy")
     label = np.asarray(y, dtype="float32")
 
     return datapet, datact, datafuse, label

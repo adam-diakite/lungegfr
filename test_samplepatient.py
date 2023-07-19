@@ -10,13 +10,13 @@ from keras.applications.vgg16 import VGG16
 from keras.models import Sequential
 from keras.layers import Input, Dense, Dropout, Flatten, Activation, GlobalAveragePooling2D, BatchNormalization
 from keras.callbacks import EarlyStopping
-from keras.layers.convolutional import Conv2D, MaxPooling2D
+# from keras.layers.convolutional import Conv2D, MaxPooling2D
 from keras.models import Model
 from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
 from keras.applications.inception_v3 import InceptionV3
 from keras.optimizers import SGD
-from keras.constraints import maxnorm
+# from keras.constraints import maxnorm
 
 from keras import backend as K
 
@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import math
 
-modelpetct1 = load_model('./model/LungEGFR.hdf5')  # ,weightspatient2-improvement-40-0.67
+modelpetct1 = load_model('/home/lito/PycharmProjects/lungegfr/model/LungEGFR.hdf5')  # ,weightspatient2-improvement-40-0.67
 modelpetct1.summary()
 
 datapet, datact, datafuse, label = load_sampledata()
