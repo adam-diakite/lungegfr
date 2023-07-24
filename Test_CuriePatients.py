@@ -43,3 +43,4 @@ def load_and_predict(root_folder, output_folder, model):
             print(f"Predictions for folder {patient_name} saved successfully.")
 
 load_and_predict(folder, results, modelpetct1)
+load_and_predict(folder, results, modelpetct1)
