@@ -6,6 +6,7 @@ import nibabel as nib
 import nibabel.processing
 import numpy as np
 from matplotlib.widgets import Slider
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import rotate
 import matplotlib.patches as patches
 from nilearn.image import resample_to_img
@@ -14,6 +15,7 @@ from PIL import Image
 from mpl_toolkits.mplot3d import Axes3D
 from nilearn.image import resample_img
 from skimage.transform import resize
+from matplotlib.widgets import Slider
 
 directory_path = "/media/adamdiakite/LaCie/batch_TEP_PP_020522"  # Replace with your directory path
 
@@ -407,11 +409,69 @@ def process_patient_folder(patient_folder):
     patients_info = nifti_processing(patient_folder)
     save_ct_pet_images(patients_info)
 
-if __name__ == "__main__":
-    root_folder = "/media/adamdiakite/LaCie/CT-TEP_Data"
-    for folder_name in os.listdir(root_folder):
-        patient_folder = os.path.join(root_folder, folder_name)
-        if os.path.isdir(patient_folder):
-            print(f"Processing patient folder: {patient_folder}")
-            process_patient_folder(patient_folder)
+def display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file):
+    # Load NIfTI files
+    ct_nii = nib.load(ct_nii_file)
+    pet_nii = nib.load(pet_nii_file)
+    segmentation_nii = nib.load(segmentation_nii_file)
+
+    # Get the data from NIfTI files
+    ct_data = ct_nii.get_fdata()
+    pet_data = pet_nii.get_fdata()
+    segmentation_data = segmentation_nii.get_fdata()
+
+    # Rotate images clockwise three times
+    ct_data = ct_data.transpose(1, 0, 2)[:, ::-1, :][::-1, :, :]
+    pet_data = pet_data.transpose(1, 0, 2)[:, ::-1, :][::-1, :, :]
+    segmentation_data = segmentation_data.transpose(1, 0, 2)[:, ::-1, :][::-1, :, :]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    # Display CT slice
+    ct_slice = axes[0].imshow(ct_data[..., 0], cmap='gray')
+    axes[0].set_title('CT Slice')
+    axes[0].axis('off')
+
+    # Display PET slice
+    pet_slice = axes[1].imshow(pet_data[..., 0], cmap='hot')
+    axes[1].set_title('PET Slice')
+    axes[1].axis('off')
+
+    # Display Segmentation slice with proper colormap
+    seg_slice = axes[2].imshow(segmentation_data[..., 0], cmap='jet', alpha=0.7, vmin=0, vmax=1)
+    axes[2].set_title('Segmentation Slice')
+    axes[2].axis('off')
+
+    plt.tight_layout()
+
+    # Function to update the displayed slices when slider value changes
+    def update_slices(val):
+        index = int(val)
+        ct_slice.set_data(ct_data[..., index])
+        pet_slice.set_data(pet_data[..., index])
+        seg_slice.set_data(segmentation_data[..., index])
+        fig.canvas.draw_idle()
+
+    # Create a slider for selecting the slice index
+    slice_slider_ax = plt.axes([0.2, 0.02, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+    slice_slider = Slider(slice_slider_ax, 'Slice', 0, ct_data.shape[-1] - 1, valinit=0, valstep=1)
+
+    # Connect the slider to the update_slices function
+    slice_slider.on_changed(update_slices)
+
+    plt.show()
+
+ct_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/Images/CTnii/3_body-ldct.nii.gz'
+pet_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/Images/PETnii/2-21-0011_pet_float32_SUVmax.nii.gz'
+segmentation_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz'
+
+display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file)
+
+# if __name__ == "__main__":
+#     root_folder = "/media/adamdiakite/LaCie/CT-TEP_Data"
+#     for folder_name in os.listdir(root_folder):
+#         patient_folder = os.path.join(root_folder, folder_name)
+#         if os.path.isdir(patient_folder):
+#             print(f"Processing patient folder: {patient_folder}")
+#             process_patient_folder(patient_folder)
 

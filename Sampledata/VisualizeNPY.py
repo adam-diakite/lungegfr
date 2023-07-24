@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #
 # Load NPY file
-data = np.load('/media/adamdiakite/LaCie/CT-TEP_Data/PNG/2-21-0004/ct.npy')
+data = np.load('/media/adamdiakite/LaCie/CT-TEP_Data/NPY/2-21-0041/pet.npy')
 
 # Determine the number of images and their shape
 num_images, height, width = data.shape
@@ -14,7 +14,7 @@ fig, axes = plt.subplots(nrows=1, ncols=num_images, figsize=(10, 4))
 for i in range(num_images):
     axes[i].imshow(data[i], cmap='gray')
     axes[i].axis('off')  # Hide the axes
-    axes[i].set_title(f'Image {i+1}')
+    axes[i].set_title( i+1)
 
 plt.tight_layout()
 plt.show()
