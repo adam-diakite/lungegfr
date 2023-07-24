@@ -3,10 +3,17 @@ import shutil
 import cv2
 import matplotlib.pyplot as plt
 import nibabel as nib
+import nibabel.processing
 import numpy as np
 from matplotlib.widgets import Slider
+from scipy.ndimage import rotate
+import matplotlib.patches as patches
+from nilearn.image import resample_to_img
+from scipy.ndimage import zoom
 from PIL import Image
 from mpl_toolkits.mplot3d import Axes3D
+from nilearn.image import resample_img
+from skimage.transform import resize
 
 directory_path = "/media/adamdiakite/LaCie/batch_TEP_PP_020522"  # Replace with your directory path
 
@@ -198,15 +205,39 @@ def copy_patient_image_folders(root_folder):
     print("Image folders copied successfully.")
 
 
+def delete_files_containing_string(root_folder, target_string):
+    for root, dirs, files in os.walk(root_folder):
+        for file_name in files:
+            if target_string in file_name:
+                file_path = os.path.join(root, file_name)
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted file: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+
+
+def delete_files_containing_string(root_folder, target_string):
+    for root, dirs, files in os.walk(root_folder):
+        for file_name in files:
+            if target_string in file_name:
+                file_path = os.path.join(root, file_name)
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted file: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+
+
 def delete_folders_with_characters(folder_path, characters):
     """
-    Deletes subfolders in the given folder path and its subdirectories that contain the specified characters in their names.
+    Deletes subfolders in the given folder path and its subdirectories that have the same name as the specified characters.
     :param folder_path: Path to the folder.
     :param characters: String of characters to match in subfolder names.
     """
     for root, dirs, files in os.walk(folder_path, topdown=False):
         for subfolder in dirs:
-            if characters in subfolder:
+            if subfolder == characters:
                 subfolder_path = os.path.join(root, subfolder)
                 # Delete the subfolder and its contents
                 for sub_root, sub_dirs, sub_files in os.walk(subfolder_path, topdown=False):
@@ -221,168 +252,166 @@ def delete_folders_with_characters(folder_path, characters):
     print("Deletion of folders completed successfully.")
 
 
-def load_img(folder, save_dir):
+
+def nifti_processing(root_folder):
     """
-    Loads and displays CT, PET, and segmentation mask images from the specified folder with a slider for slice selection.
-    Plots the resized tumor slices where there is a tumor and saves them in separate CT and PET folders.
+    Processes the NIfTI files in each patient's folder at the specified location.
+    Returns the necessary information for displaying every slice of CT, PET, and segmentation NIfTI files.
     """
-    image_folder = os.path.join(folder, "Images")
-    ct_folder = os.path.join(image_folder, "CTnii")
-    pet_folder = os.path.join(image_folder, "PETnii")
-    segmentation_folder = os.path.join(folder, "segmentation")
+    patients_info = []
+    patients_with_error = []  # To store patient folders that encountered EOFError
 
-    # Load CT image
-    ct_path = os.path.join(ct_folder, os.listdir(ct_folder)[0])
-    ct_img = nib.load(ct_path)
-    ct_data = ct_img.get_fdata()
-    ct_data = cv2.resize(ct_data, (512, 512), interpolation=cv2.INTER_CUBIC)
+    for root, dirs, _ in os.walk(root_folder):
+        if "Images" in dirs and "segmentation" in dirs:
+            print(f"Processing directory: {root}")
+            ct_folder = os.path.join(root, "Images", "CTnii")
+            pet_folder = os.path.join(root, "Images", "PETnii")
+            segmentation_folder = os.path.join(root, "segmentation")
 
-    # Load PET image
-    pet_path = os.path.join(pet_folder, os.listdir(pet_folder)[0])
-    pet_img = nib.load(pet_path)
-    pet_data = pet_img.get_fdata()
-    pet_data = cv2.resize(pet_data, (512, 512), interpolation=cv2.INTER_CUBIC)
+            ct_files = os.listdir(ct_folder)
+            pet_files = os.listdir(pet_folder)
+            segmentation_files = [f for f in os.listdir(segmentation_folder) if f.endswith(".nii.gz")]
 
-    # Load segmentation mask
-    seg_path = os.path.join(segmentation_folder, os.listdir(segmentation_folder)[0])
-    seg_img = nib.load(seg_path)
-    seg_data = seg_img.get_fdata()
-    seg_data = cv2.resize(seg_data, (512, 512), interpolation=cv2.INTER_CUBIC)
+            if len(ct_files) == 1 and len(pet_files) == 1 and len(segmentation_files) == 1:
+                ct_nii_file = os.path.join(ct_folder, ct_files[0])
+                pet_nii_file = os.path.join(pet_folder, pet_files[0])
+                segmentation_nii_file = os.path.join(segmentation_folder, segmentation_files[0])
 
-    # Rotate images clockwise
-    ct_data = np.rot90(ct_data, k=1, axes=(0, 1))
-    pet_data = np.rot90(pet_data, k=1, axes=(0, 1))
-    seg_data = np.rot90(seg_data, k=1, axes=(0, 1))
+                try:
+                    nifti_ct = nib.load(ct_nii_file)
+                    nifti_pet = nib.load(pet_nii_file)
+                    nifti_segmentation = nib.load(segmentation_nii_file)
 
-    print("CT Shape:", ct_data.shape)
-    print("PET Shape:", pet_data.shape)
-    print("Segmentation Mask Shape:", seg_data.shape)
+                    # Resample CT image to match PET and segmentation resolution
+                    nifti_ct_resampled = resample_img(nifti_ct, target_affine=nifti_pet.affine, target_shape=nifti_pet.shape)
 
-    # Create figure and axes for CT, PET, segmentation mask, CT tumor, and PET tumor images
-    fig, (ax_ct, ax_pet, ax_seg, ax_ct_tumor, ax_pet_tumor) = plt.subplots(1, 5, figsize=(18, 4))
-    fig.suptitle('CT, PET, and Segmentation Mask Images')
+                    # Binarize the segmentation file
+                    seg_data = nifti_segmentation.get_fdata()
+                    seg_data_binary = (seg_data >= 0.5).astype(np.uint8)
 
-    # Display initial slices
-    ct_slice = 0
-    pet_slice = 0
-    seg_slice = 0
+                    # Find tumor coordinates from segmentation mask
+                    tumor_indices = np.where(seg_data_binary == 1)
+                    min_y, max_y = np.min(tumor_indices[0]), np.max(tumor_indices[0])
+                    min_x, max_x = np.min(tumor_indices[1]), np.max(tumor_indices[1])
+                    min_z, max_z = np.min(tumor_indices[2]), np.max(tumor_indices[2])
 
-    # Display CT image
-    ax_ct.imshow(ct_data[:, :, ct_slice], cmap='gray', origin='lower')
-    ax_ct.set_title('CT Image')
+                    # Ensure the bounding box size is 128x128
+                    center_y, center_x = (min_y + max_y) // 2, (min_x + max_x) // 2
+                    half_size = 32  # half of the desired size (128/2 = 64)
 
-    # Display PET image
-    ax_pet.imshow(pet_data[:, :, pet_slice], cmap='hot', origin='lower', vmin=np.min(pet_data), vmax=np.max(pet_data))
-    ax_pet.set_title('PET Image')
+                    # Create a new bounding box that is centered around the tumor and has a size of 128x128
+                    new_min_y = center_y - half_size
+                    new_max_y = center_y + half_size
+                    new_min_x = center_x - half_size
+                    new_max_x = center_x + half_size
 
-    # Display segmentation mask
-    ax_seg.imshow(seg_data[:, :, seg_slice], cmap='gray', origin='lower', vmin=np.min(seg_data), vmax=np.max(seg_data))
-    ax_seg.set_title('Segmentation Mask')
+                    # Extract tumor region from CT and PET data based on the new bounding box
+                    ct_tumor = nifti_ct_resampled.slicer[new_min_y:new_max_y, new_min_x:new_max_x, min_z:max_z].get_fdata()
+                    pet_tumor = nifti_pet.slicer[new_min_y:new_max_y, new_min_x:new_max_x, min_z:max_z].get_fdata()
 
-    # Find tumor coordinates from segmentation mask
-    tumor_indices = np.where(seg_data > 0)
-    min_y, max_y = np.min(tumor_indices[0]), np.max(tumor_indices[0])
-    min_x, max_x = np.min(tumor_indices[1]), np.max(tumor_indices[1])
-    tumor_height = max_y - min_y
-    tumor_width = max_x - min_x
-    tumor_center_y = (max_y + min_y) // 2
-    tumor_center_x = (max_x + min_x) // 2
+                    # Ensure the tumor images have a fixed size of 128x128
+                    ct_tumor_resized = resize_image(ct_tumor, target_shape=(128, 128, ct_tumor.shape[-1]))
+                    pet_tumor_resized = resize_image(pet_tumor, target_shape=(128, 128, pet_tumor.shape[-1]))
 
-    # Define zoom region around tumor
-    zoom_size = 128
-    zoom_y_start = max(0, tumor_center_y - zoom_size // 2)
-    zoom_y_end = min(ct_data.shape[0], zoom_y_start + zoom_size)
-    zoom_x_start = max(0, tumor_center_x - zoom_size // 2)
-    zoom_x_end = min(ct_data.shape[1], zoom_x_start + zoom_size)
+                    patient_info = {
+                        "patient": root,
+                        "ct_nii": nifti_ct_resampled,
+                        "pet_nii": nifti_pet,
+                        "segmentation_nii": nifti_segmentation,
+                        "ct_tumor": ct_tumor_resized,
+                        "pet_tumor": pet_tumor_resized,
+                        "seg_tumor": seg_data[new_min_y:new_max_y, new_min_x:new_max_x, min_z:max_z],
+                        "tumor_bbox": (new_min_y, new_max_y, new_min_x, new_max_x, min_z, max_z),
+                        "images_folder": os.path.join(root, "Images"),
+                    }
+                    patients_info.append(patient_info)
+                    print(f"Patient {root} processed")
+                except EOFError:
+                    patients_with_error.append(root)
+                    print(f"EOFError: Skipping patient {root} due to incomplete NIfTI files.")
+                    continue
 
-    # Extract tumor region from CT scan and apply zoom
-    ct_tumor_zoomed = ct_data[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end, ct_slice]
-    ct_tumor_resized = cv2.resize(ct_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_CUBIC)
+    if patients_with_error:
+        print("Patients with EOFError:")
+        for patient_folder in patients_with_error:
+            print(patient_folder)
 
-    # Extract tumor region from PET scan and apply zoom
-    pet_tumor_zoomed = pet_data[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end, pet_slice]
-    pet_tumor_resized = cv2.resize(pet_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_CUBIC)
-
-    # Display CT tumor image
-    ax_ct_tumor.imshow(ct_tumor_resized, cmap='gray', origin='lower')
-    ax_ct_tumor.set_title('CT Tumor')
-
-    # Display PET tumor image
-    ax_pet_tumor.imshow(pet_tumor_resized, cmap='hot', origin='lower', vmin=np.min(seg_data), vmax=np.max(seg_data))
-    ax_pet_tumor.set_title('PET Tumor')
-
-    # Adjust spacing and layout
-    fig.tight_layout()
-
-    num_slices = pet_data.shape[2]
-
-    # Create slider
-    slider_ax = plt.axes([0.1, 0.05, 0.8, 0.03])
-    slider = Slider(slider_ax, 'Slice', 0, num_slices - 1, valinit=0, valstep=1)
-
-    # Flag to track if the slider has been closed
-    slider_closed = False
-
-    # Update function for slider
-    def update(val):
-        nonlocal slider_closed
-        current_slice = int(slider.val)
-        ax_ct.images[0].set_array(ct_data[:, :, current_slice])
-        ax_pet.images[0].set_array(pet_data[:, :, current_slice])
-        ax_seg.images[0].set_array(seg_data[:, :, current_slice])
-        zoom_y_start = max(0, tumor_center_y - zoom_size // 2)
-        zoom_y_end = min(ct_data.shape[0], zoom_y_start + zoom_size)
-        zoom_x_start = max(0, tumor_center_x - zoom_size // 2)
-        zoom_x_end = min(ct_data.shape[1], zoom_x_start + zoom_size)
-        ct_tumor_zoomed = ct_data[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end, current_slice]
-        ct_tumor_resized = cv2.resize(ct_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_LINEAR)
-        ax_ct_tumor.images[0].set_array(ct_tumor_resized)
-        pet_tumor_zoomed = pet_data[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end, current_slice]
-        pet_tumor_resized = cv2.resize(pet_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_LINEAR)
-        ax_pet_tumor.images[0].set_array(pet_tumor_resized)
-        fig.canvas.draw_idle()
-
-    # Connect slider update function to slider
-    slider.on_changed(update)
-
-    # Show the plots
-    plt.show()
-
-    # Check if the slider has been closed
-    if not slider_closed:
-        # Find tumor slices based on segmentation mask
-        tumor_slices = np.unique(np.where(seg_data > 1)[2])
-
-        # Create CT and PET tumor directories
-        ct_save_dir = os.path.join(save_dir, "CT")
-        pet_save_dir = os.path.join(save_dir, "PET")
-        os.makedirs(ct_save_dir, exist_ok=True)
-        os.makedirs(pet_save_dir, exist_ok=True)
-
-        # Save the corresponding CT tumor images for tumor slices
-        for slice_index in tumor_slices:
-            ct_tumor_slice = ct_data[:, :, slice_index]
-            ct_tumor_zoomed = ct_tumor_slice[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end]
-            ct_tumor_resized = cv2.resize(ct_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_CUBIC)
-            save_path = os.path.join(ct_save_dir, "Slice_{}.png".format(slice_index))
-            plt.imsave(save_path, ct_tumor_resized, cmap='gray', origin='lower')
-
-        # Save the corresponding PET tumor images for tumor slices
-        for slice_index in tumor_slices:
-            pet_tumor_slice = pet_data[:, :, slice_index]
-            pet_tumor_zoomed = pet_tumor_slice[zoom_y_start:zoom_y_end, zoom_x_start:zoom_x_end]
-            pet_tumor_resized = cv2.resize(pet_tumor_zoomed, (zoom_size, zoom_size), interpolation=cv2.INTER_CUBIC)
-            save_path = os.path.join(pet_save_dir, "Slice_{}.png".format(slice_index))
-            plt.imsave(save_path, pet_tumor_resized, cmap='hot', origin='lower', vmin=np.min(seg_data),
-                       vmax=np.max(seg_data))
-
-        # Print the indices of the tumor slices
-        print("Tumor slice indices:", tumor_slices)
+    return patients_info
 
 
-# Example usage:
-folder_path = "/home/adamdiakite/Documents/2-21-0004"
-images_curie = "/home/adamdiakite/Documents/lungegfr-master/Sampledata/Images_Curie"
-folder = "/media/lito/LaCie/CT-TEP_Data/"
+def resize_image(image, target_shape):
+    """
+    Resizes the given image to the target shape.
+    :param image: Image to resize.
+    :param target_shape: Tuple specifying the target shape.
+    :return: Resized image.
+    """
+    resized_image = resize(image, target_shape, mode='constant', anti_aliasing=True)
 
-load_img(folder_path, images_curie)
+    return resized_image
+
+def normalize_image(image):
+    # Normalize the image to 0-255
+    image_min = np.min(image)
+    image_max = np.max(image)
+    image_range = image_max - image_min
+    image_normalized = ((image - image_min) / image_range) * 255
+    return image_normalized.astype(np.uint8)
+
+def save_image_as_png(image, output_folder, filename):
+    image_normalized = normalize_image(image)
+
+    # Rotate clockwise three times to get 90 degrees clockwise rotation
+    image_normalized_rotated = np.rot90(image_normalized, k=3)
+
+    # Flip vertically to match medical image convention (origin='lower')
+    image_normalized_flipped = np.flipud(image_normalized_rotated)
+
+    img = Image.fromarray(image_normalized_flipped)
+    img.save(os.path.join(output_folder, filename))
+
+def save_ct_pet_images(patients_info):
+    for patient_info in patients_info:
+        nifti_ct = patient_info["ct_nii"]
+        nifti_pet = patient_info["pet_nii"]
+        tumor_bbox = patient_info["tumor_bbox"]
+        images_folder = patient_info["images_folder"]
+
+        ct_data = nifti_ct.get_fdata()
+        pet_data = nifti_pet.get_fdata()
+
+        min_y, max_y, min_x, max_x, min_z, max_z = tumor_bbox
+
+        # Extract tumor region from CT and PET scan based on bounding box
+        ct_tumor = ct_data[min_y:max_y, min_x:max_x, min_z:max_z]
+        pet_tumor = pet_data[min_y:max_y, min_x:max_x, min_z:max_z]
+
+        # Create output folders for CT and PET tumors
+        ct_tumor_folder = os.path.join(images_folder, "CT_PNG")
+        pet_tumor_folder = os.path.join(images_folder, "PET_PNG")
+        os.makedirs(ct_tumor_folder, exist_ok=True)
+        os.makedirs(pet_tumor_folder, exist_ok=True)
+
+        # Save CT tumor slices
+        for i in range(ct_tumor.shape[2]):
+            ct_tumor_filename = f"ct_tumor_slice_{i:03d}.png"
+            save_image_as_png(ct_tumor[:, :, i], ct_tumor_folder, ct_tumor_filename)
+
+        # Save PET tumor slices
+        for i in range(pet_tumor.shape[2]):
+            pet_tumor_filename = f"pet_tumor_slice_{i:03d}.png"
+            save_image_as_png(pet_tumor[:, :, i], pet_tumor_folder, pet_tumor_filename)
+
+
+def process_patient_folder(patient_folder):
+    patients_info = nifti_processing(patient_folder)
+    save_ct_pet_images(patients_info)
+
+if __name__ == "__main__":
+    root_folder = "/media/adamdiakite/LaCie/CT-TEP_Data"
+    for folder_name in os.listdir(root_folder):
+        patient_folder = os.path.join(root_folder, folder_name)
+        if os.path.isdir(patient_folder):
+            print(f"Processing patient folder: {patient_folder}")
+            process_patient_folder(patient_folder)
+

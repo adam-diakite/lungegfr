@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #
 # Load NPY file
-data = np.load('/home/lito/PycharmProjects/lungegfr/Sampledata/xpsamplefuse.npy')
+data = np.load('/media/adamdiakite/LaCie/CT-TEP_Data/PNG/2-21-0004/ct.npy')
 
 # Determine the number of images and their shape
 num_images, height, width = data.shape
@@ -18,4 +18,5 @@ for i in range(num_images):
 
 plt.tight_layout()
 plt.show()
+
 

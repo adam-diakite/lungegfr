@@ -1,34 +1,8 @@
 import os
-import pydicom
 import numpy as np
 import nibabel as nib
 import dicom2nifti
-import shutil
-from scipy.ndimage import zoom, rotate
-
-# dicom_series_folder = '/media/lito/LaCie/CT-TEP_Data/2-21-0005/Images/CT/'
-# nifti_output_file = '/media/lito/LaCie/CT-TEP_Data/2-21-0005/Images/'
-# dicom2nifti.convert_directory(dicom_series_folder, nifti_output_file)
-#
-# nifti_ct = "/media/lito/LaCie/CT-TEP_Data/2-21-0005/Images/ct_nii_ex.nii.gz"
-# nifti_pet = "/media/lito/LaCie/CT-TEP_Data/2-21-0005/Images/PETnii/2-21-0005_pet_float32_SUVbw.nii.gz"
-#
-#
-# # Load NIfTI files
-# nifti1 = nib.load(nifti_ct)
-# nifti2 = nib.load(nifti_pet)
-#
-# # Get voxel size for each NIfTI file
-# voxel_size1 = nifti1.header.get_zooms()
-# voxel_size2 = nifti2.header.get_zooms()
-#
-# # Change voxel size of voxel_size1 to match voxel_size2
-# voxel_size1 = voxel_size2
-#
-# # Print voxel size
-# print(f'Voxel size of {nifti_ct}: {voxel_size1}')
-# print(f'Voxel size of {nifti_pet}: {voxel_size2}')
-#
+from nilearn.image import resample_to_img, resample_img
 
 
 def convert(root_folder):
@@ -47,89 +21,69 @@ def convert(root_folder):
 def resample(root_folder):
     for root, dirs, _ in os.walk(root_folder):
         if "Images" in dirs:
+            print(f"Processing directory: {root}")
             ct_folder = os.path.join(root, "Images", "CTnii")
             pet_folder = os.path.join(root, "Images", "PETnii")
             segmentation_folder = os.path.join(root, "segmentation")
 
-            # Initialize NIfTI file paths
-            ct_nii_file = None
-            pet_nii_file = None
-            segmentation_nii_file = None
-
-            # Get the CT NIfTI file
-            ct_files = os.listdir(ct_folder)
-            if len(ct_files) == 1:
-                ct_nii_file = os.path.join(ct_folder, ct_files[0])
-
-            # Get the PET NIfTI file
-            pet_files = os.listdir(pet_folder)
-            if len(pet_files) == 1:
-                pet_nii_file = os.path.join(pet_folder, pet_files[0])
-
-            # Get the Segmentation NIfTI file
-            segmentation_files = os.listdir(segmentation_folder)
-            segmentation_files = [f for f in segmentation_files if f.endswith(".nii.gz")]
-            if len(segmentation_files) == 1:
-                segmentation_nii_file = os.path.join(segmentation_folder, segmentation_files[0])
-
-            if ct_nii_file is None or pet_nii_file is None or segmentation_nii_file is None:
-                # If any of the NIfTI files is missing, skip this patient
+            # Check if the necessary subdirectories exist
+            if not os.path.exists(ct_folder) or not os.path.exists(pet_folder) or not os.path.exists(segmentation_folder):
+                print("Error: Subdirectories not found in the current directory.")
                 continue
 
-            # Load NIfTI files
-            nifti_ct = nib.load(ct_nii_file)
-            nifti_pet = nib.load(pet_nii_file)
-            nifti_segmentation = nib.load(segmentation_nii_file)
+            ct_files = os.listdir(ct_folder)
+            pet_files = os.listdir(pet_folder)
+            segmentation_files = [f for f in os.listdir(segmentation_folder) if f.endswith(".nii.gz")]
 
-            # Get voxel size for PET NIfTI
-            voxel_size_pet = nifti_pet.header.get_zooms()
+            if len(ct_files) == 1 and len(pet_files) == 1 and len(segmentation_files) == 1:
+                ct_nii_file = os.path.join(ct_folder, ct_files[0])
+                pet_nii_file = os.path.join(pet_folder, pet_files[0])
+                segmentation_nii_file = os.path.join(segmentation_folder, segmentation_files[0])
 
-            # Resample CT to match PET shape
-            ct_data = nifti_ct.get_fdata()
-            ct_shape = ct_data.shape
-            pet_shape = nifti_pet.get_fdata().shape
+                nifti_ct = nib.load(ct_nii_file)
+                nifti_pet = nib.load(pet_nii_file)
+                nifti_segmentation = nib.load(segmentation_nii_file)
 
-            if ct_shape != pet_shape:
-                zoom_factors = np.array(pet_shape) / np.array(ct_shape)
-                ct_data_resampled = zoom(ct_data, zoom_factors, order=1)
+                # Resample CT to match PET shape and affine
+                print("Resampling CT to match PET shape and affine...")
+                ct_data_resampled = resample_to_img(nifti_ct, nifti_pet, interpolation="linear").get_fdata()
+
+                # Save the resampled CT NIfTI with PET voxel size in place (overwrite the original CT file)
+                print("Saving the resampled CT NIfTI with PET voxel size in place...")
+                nib.save(nib.Nifti1Image(ct_data_resampled, nifti_pet.affine, header=nifti_pet.header), ct_nii_file)
+
+                # Update voxel size for PET and Segmentation NIfTI files
+                for nifti_file in [pet_nii_file, segmentation_nii_file]:
+                    nifti_data = nib.load(nifti_file)
+                    nifti_data.header.set_zooms((1, 1, 1))
+                    nib.save(nifti_data, nifti_file)
+
+                # Resample CT, PET, and Segmentation to have the same voxel size (1, 1, 1)
+                target_affine = np.diag((1, 1, 1))
+
+                # Resample PET
+                print("Resampling PET with updated voxel size...")
+                resampled_pet = resample_img(nifti_pet, target_affine=target_affine)
+                nib.save(resampled_pet, pet_nii_file)
+
+                # Resample Segmentation
+                print("Resampling Segmentation with updated voxel size...")
+                resampled_segmentation = resample_img(nifti_segmentation, target_affine=target_affine)
+                nib.save(resampled_segmentation, segmentation_nii_file)
+
+                # Resample CT again using the same target_affine
+                print("Resampling CT with updated voxel size...")
+                resampled_ct = resample_img(nifti_ct, target_affine=target_affine)
+                nib.save(resampled_ct, ct_nii_file)
+
+                print(f"Resampled CT NIfTI saved to {ct_nii_file}.")
+                print(f"Updated PET NIfTI saved to: {pet_nii_file}")
+                print(f"Updated Segmentation NIfTI saved to: {segmentation_nii_file}")
             else:
-                ct_data_resampled = ct_data
-
-            # Rotate CT 180 degrees clockwise (two times)
-            ct_data_rotated = rotate(ct_data_resampled, angle=180, axes=(1, 0), reshape=False)
-
-            # Save the rotated CT NIfTI with PET voxel size
-            new_ct_nii_file = os.path.join(ct_folder, "resampled_and_rotated_ct.nii.gz")
-            nib.save(nib.Nifti1Image(ct_data_rotated, nifti_pet.affine, header=nifti_pet.header), new_ct_nii_file)
-
-            # Get the updated CT NIfTI and create a new header with voxel size (1, 1, 1)
-            updated_ct_nifti = nib.load(new_ct_nii_file)
-            updated_ct_nifti.header.set_zooms((1, 1, 1))
-
-            # Save the CT NIfTI with updated voxel size
-            nib.save(updated_ct_nifti, new_ct_nii_file)
-
-            # Set voxel size of PET and Segmentation NIfTI files to (1, 1, 1) and save
-            updated_pet_nii = nib.Nifti1Image(nifti_pet.get_fdata(), nifti_pet.affine, header=nifti_pet.header)
-            updated_pet_nii.header.set_zooms((1, 1, 1))
-            nib.save(updated_pet_nii, pet_nii_file)
-
-            updated_segmentation_nii = nib.Nifti1Image(nifti_segmentation.get_fdata(), nifti_segmentation.affine, header=nifti_segmentation.header)
-            updated_segmentation_nii.header.set_zooms((1, 1, 1))
-            nib.save(updated_segmentation_nii, segmentation_nii_file)
-
-            print(f"Resampled and rotated CT NIfTI saved to: {new_ct_nii_file}")
-            print(f"Updated PET NIfTI saved to: {pet_nii_file}")
-            print(f"Updated Segmentation NIfTI saved to: {segmentation_nii_file}")
-
-            # Print voxel size after modification
-            print(f"Patient ID: {os.path.basename(root)}")
-            print(f"Voxel size of CT NIfTI: {updated_ct_nifti.header.get_zooms()}")
-            print(f"Voxel size of PET NIfTI: {updated_pet_nii.header.get_zooms()}")
-            print(f"Voxel size of Segmentation NIfTI: {updated_segmentation_nii.header.get_zooms()}")
-            print("----------------------------")
+                print("Error: The required number of files not found in the current directory.")
 
 if __name__ == "__main__":
-    root_folder = '/media/lito/LaCie/CT-TEP_Data/'
-    convert(root_folder)
+    root_folder = '/home/adamdiakite/Documents/Extra'
     resample(root_folder)
+
+
