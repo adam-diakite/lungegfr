@@ -461,17 +461,17 @@ def display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file):
 
     plt.show()
 
-ct_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/Images/CTnii/3_body-ldct.nii.gz'
-pet_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/Images/PETnii/2-21-0011_pet_float32_SUVmax.nii.gz'
-segmentation_nii_file = '/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0011/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz'
+ct_nii_file = '/media/adamdiakite/LaCie/Patients à resampler/2-21-0171/Images/CTnii/3_ct_std.nii.gz'
+pet_nii_file = '/media/adamdiakite/LaCie/Patients à resampler/2-21-0171/Images/PETnii/2-21-0171_pet_float32_SUVbw.nii.gz'
+segmentation_nii_file = '/media/adamdiakite/LaCie/Patients à resampler/2-21-0171/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz'
+#
+# display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file)
 
-display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file)
-
-# if __name__ == "__main__":
-#     root_folder = "/media/adamdiakite/LaCie/CT-TEP_Data"
-#     for folder_name in os.listdir(root_folder):
-#         patient_folder = os.path.join(root_folder, folder_name)
-#         if os.path.isdir(patient_folder):
-#             print(f"Processing patient folder: {patient_folder}")
-#             process_patient_folder(patient_folder)
+if __name__ == "__main__":
+    root_folder = "/media/adamdiakite/LaCie/Patients problème extraction image"
+    for folder_name in os.listdir(root_folder):
+        patient_folder = os.path.join(root_folder, folder_name)
+        if os.path.isdir(patient_folder):
+            print(f"Processing patient folder: {patient_folder}")
+            process_patient_folder(patient_folder)
 

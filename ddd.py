@@ -1,3 +1,4 @@
+
 from __future__ import print_function
 import numpy as np
 import os
@@ -6,9 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import math
 import pandas as pd
-# Add the following line to the top of your code
-from itertools import combinations
-import itertools
 from lifelines import CoxPHFitter
 from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
@@ -18,9 +16,7 @@ results = "/media/adamdiakite/LaCie/CT-TEP_Data/Results"
 csv = "/media/adamdiakite/LaCie/CT-TEP_Data/Results/PrecisionPredict_Paris.csv"
 modelpetct1 = load_model(
     '/home/adamdiakite/Documents/lungegfr-master/model/LungEGFR.hdf5')  # ,weightspatient2-improvement-40-0.67
-
-
-# modelpetct1.summary()
+modelpetct1.summary()
 
 
 def load_and_predict(root_folder, output_folder, model):
@@ -163,82 +159,51 @@ def kaplan_meier_analysis(patient_info_list):
 
     return kmf_high_dls, kmf_low_dls
 
-def optimal_kaplan_meier(patient_info_list):
-    # Sort the patient_info_list based on 'average_score'
-    sorted_list = sorted(patient_info_list, key=lambda x: x['average_score'])
 
-    # Get the observed times and events for all patients
-    all_times = np.array([patient['Time'] for patient in sorted_list])
-    all_events = np.array([patient['Status'] for patient in sorted_list])
+def group_config(kmf_high_dls, kmf_low_dls):
+    # Get the time and status data for both groups
+    time_high_dls = kmf_high_dls.timeline
+    status_high_dls = kmf_high_dls.event_observed
+    time_low_dls = kmf_low_dls.timeline
+    status_low_dls = kmf_low_dls.event_observed
 
-    # Get the number of patients
-    num_patients = len(sorted_list)
+    # Initialize variables to keep track of the best configuration
+    best_p_value = 1.0
+    best_group_config = (kmf_high_dls, kmf_low_dls)
 
-    # Initialize variables to keep track of the optimal group configuration
-    min_p_value = float('inf')
-    optimal_group1 = []
-    optimal_group2 = []
+    # Iterate through all possible configurations of moving patients between the groups
+    for i in range(len(time_high_dls)):
+        for j in range(len(time_low_dls)):
+            # Create new configurations by moving patients
+            new_time_high_dls = np.concatenate((time_high_dls[:i], time_low_dls[j:]))
+            new_time_low_dls = time_high_dls[i:j]
+            new_status_high_dls = np.concatenate((status_high_dls[:i], status_low_dls[j:]))
+            new_status_low_dls = status_high_dls[i:j]
 
-    # Iterate over different group sizes
-    for group1_size in range(1, num_patients):
-        # Get the indices for group 1 and group 2
-        group1_indices = list(range(group1_size))
-        group2_indices = list(range(group1_size, num_patients))
+            # Initialize Kaplan-Meier estimator objects for the new configurations
+            kmf_new_high_dls = KaplanMeierFitter()
+            kmf_new_low_dls = KaplanMeierFitter()
 
-        # Get the times and events for group 1 and group 2
-        group1_times = all_times[group1_indices]
-        group1_events = all_events[group1_indices]
-        group2_times = all_times[group2_indices]
-        group2_events = all_events[group2_indices]
+            # Fit the Kaplan-Meier estimator to the data for the new configurations
+            kmf_new_high_dls.fit(new_time_high_dls, event_observed=new_status_high_dls, label='High DLS')
+            kmf_new_low_dls.fit(new_time_low_dls, event_observed=new_status_low_dls, label='Low DLS')
 
-        # Perform log-rank test to calculate the p-value
-        results = logrank_test(group1_times, group2_times, event_observed_A=group1_events, event_observed_B=group2_events)
-        p_value = results.p_value
+            # Calculate the p-value for the new configurations
+            results = logrank_test(new_time_high_dls, new_time_low_dls, event_observed_A=new_status_high_dls, event_observed_B=new_status_low_dls)
+            p_value = results.p_value
 
-        # Get the average scores for group 1 and group 2
-        group1_scores = [sorted_list[i]['average_score'] for i in group1_indices]
-        group2_scores = [sorted_list[i]['average_score'] for i in group2_indices]
+            # Update the best configuration if the p-value is smaller
+            if p_value < best_p_value:
+                best_p_value = p_value
+                best_group_config = (kmf_new_high_dls, kmf_new_low_dls)
 
-        # Print the current group configuration, the associated p-value, and the average scores
-        print(f"Group 1 Size: {group1_size}, P-Value: {p_value:.6f}")
-        print(f"Group 1 Scores: {group1_scores}")
-        print(f"Group 2 Scores: {group2_scores}")
+    return best_group_config
 
-        # Update the optimal group configuration if the p-value is smaller
-        if p_value < min_p_value:
-            min_p_value = p_value
-            optimal_group1 = group1_indices
-            optimal_group2 = group2_indices
 
-    # Get the patient information for the optimal groups
-    optimal_group1_info = [sorted_list[i] for i in optimal_group1]
-    optimal_group2_info = [sorted_list[i] for i in optimal_group2]
-
-    # Plot the Kaplan-Meier survival curves for the optimal groups
-    kmf_optimal_group1 = KaplanMeierFitter()
-    kmf_optimal_group1.fit(all_times[optimal_group1], event_observed=all_events[optimal_group1], label='Optimal Group 1')
-
-    kmf_optimal_group2 = KaplanMeierFitter()
-    kmf_optimal_group2.fit(all_times[optimal_group2], event_observed=all_events[optimal_group2], label='Optimal Group 2')
-
-    # Plot the Kaplan-Meier survival curves for the optimal groups with separate colors
-    plt.figure(figsize=(10, 6))
-    kmf_optimal_group1.plot(color='red')
-    kmf_optimal_group2.plot(color='blue')
-    plt.title('Optimal Kaplan-Meier Survival Curve')
-    plt.xlabel('Time (months)')
-    plt.ylabel('Survival Probability')
-    plt.grid()
-    plt.legend(loc='lower left')
-    plt.show()
-
-    return kmf_optimal_group1, kmf_optimal_group2
 
 patient_info_list = load_and_predict(folder, results, modelpetct1)
 patient_info_list_with_data = load_additional_data(csv, patient_info_list)
 
-print(patient_info_list)
-print(patient_info_list_with_data)
 # # Printing the combined patient information list
 # for patient_info in patient_info_list_with_data:
 #     print(f"Patient ID: {patient_info['patient_folder']}, DLS Score: {patient_info['average_score']}, "
@@ -246,7 +211,18 @@ print(patient_info_list_with_data)
 # kaplan = kaplan_meier_analysis(patient_info_list)
 # print(kaplan)
 
-# kmf_high_dls, kmf_low_dls = kaplan_meier_analysis(patient_info_list_with_data)
-o_kmf_high_dls, o_mkf_low_dls = optimal_kaplan_meier(patient_info_list_with_data)
+kmf_high_dls, kmf_low_dls = kaplan_meier_analysis(patient_info_list)
+best_group_config = group_config(kmf_high_dls, kmf_low_dls)
 
-# print(patient_info_list_with_data)
+# Plot the Kaplan-Meier survival curves for the best configuration
+plt.figure(figsize=(10, 6))
+best_group_config[0].plot(color='red')
+best_group_config[1].plot(color='blue')
+plt.title('Kaplan-Meier Survival Curve (Optimal Configuration)')
+plt.xlabel('Time (months)')
+plt.ylabel('Survival Probability')
+plt.grid()
+plt.legend(loc='lower left')
+plt.show()
+
+
