@@ -2,8 +2,8 @@ import os
 import numpy as np
 from PIL import Image
 
-folder = "/media/adamdiakite/LaCie/CT-TEP_Data"
-dest = "/media/adamdiakite/LaCie/CT-TEP_Data/PNG"
+folder = "/media/lito/LaCie/CT-TEP_Data/"
+dest = "/media/lito/LaCie/CT-TEP_Data//NPY"
 
 
 def check_png_folders(root_folder):
@@ -44,11 +44,9 @@ def check_png_folders(root_folder):
         print("Some folders are missing CT_PNG and/or PET_PNG.")
 
 
-check_png_folders(folder)
-
-
 def normalization_img(image):
     return (image - np.mean(image)) / np.std(image)
+
 
 def process_png_folders(root_folder, output_folder):
     """
@@ -121,4 +119,3 @@ def process_png_folders(root_folder, output_folder):
 
 
 process_png_folders(folder, dest)
-

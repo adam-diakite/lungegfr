@@ -83,7 +83,7 @@ def resample(root_folder):
                 print("Error: The required number of files not found in the current directory.")
 
 if __name__ == "__main__":
-    root_folder = '/media/adamdiakite/LaCie/Patients problème extraction image'
+    root_folder = '/media/lito/LaCie/problème/'
     resample(root_folder)
 
 
