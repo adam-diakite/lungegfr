@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #
 # Load NPY file
-data = np.load('/media/adamdiakite/LaCie/CT-TEP_Data/NPY/2-21-0041/pet.npy')
+data = np.load('/media/adamdiakite/LaCie/CT-TEP_ICI/NPY/P_AAAA1112/ct.npy')
 
 # Determine the number of images and their shape
 num_images, height, width = data.shape

@@ -1,4 +1,6 @@
 import os
+
+import nibabel
 import numpy as np
 import nibabel as nib
 import dicom2nifti
@@ -40,9 +42,13 @@ def resample(root_folder):
                 pet_nii_file = os.path.join(pet_folder, pet_files[0])
                 segmentation_nii_file = os.path.join(segmentation_folder, segmentation_files[0])
 
-                nifti_ct = nib.load(ct_nii_file)
-                nifti_pet = nib.load(pet_nii_file)
-                nifti_segmentation = nib.load(segmentation_nii_file)
+                try:
+                    nifti_ct = nib.load(ct_nii_file)
+                    nifti_pet = nib.load(pet_nii_file)
+                    nifti_segmentation = nib.load(segmentation_nii_file)
+                except nibabel.filebasedimages.ImageFileError:
+                    print(f"Error: Cannot work out file type of {ct_nii_file} or {pet_nii_file} or {segmentation_nii_file}. Skipping patient.")
+                    continue
 
                 # Resample CT to match PET shape and affine
                 print("Resampling CT to match PET shape and affine...")
@@ -83,7 +89,8 @@ def resample(root_folder):
                 print("Error: The required number of files not found in the current directory.")
 
 if __name__ == "__main__":
-    root_folder = '/media/adamdiakite/LaCie/Patients problème extraction image'
+    root_folder = '/media/adamdiakite/LaCie/dest_treat'
+    # convert(root_folder)
     resample(root_folder)
 
 

@@ -15,7 +15,7 @@ folder = "/media/adamdiakite/LaCie/CT-TEP_Data/NPY"
 results = "/media/adamdiakite/LaCie/CT-TEP_Data/Results"
 csv = "/media/adamdiakite/LaCie/CT-TEP_Data/Results/PrecisionPredict_Paris.csv"
 modelpetct1 = load_model(
-    '/home/adamdiakite/Documents/lungegfr-master/model/LungEGFR.hdf5')  # ,weightspatient2-improvement-40-0.67
+    '/model/LungEGFR.hdf5')  # ,weightspatient2-improvement-40-0.67
 modelpetct1.summary()
 
 
