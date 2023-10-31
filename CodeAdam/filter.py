@@ -116,8 +116,8 @@ def convert_dicom_series_to_nifti_recursive(root_folder):
                 nifti_filepath = os.path.join(dirpath, "scan.nii.gz")
                 dicom2nifti.write_nifti(nifti_image, nifti_filepath)
 
-
-# path = '/media/adamdiakite/LaCie/Patients_Groupe_A/ex'
+#
+# path = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
 # convert_dicom_series_to_nifti_recursive(path)
 
 
@@ -238,6 +238,52 @@ def copy_folders_with_subfolder_structure(root_directory, key, destination_direc
 # rename_files_with_key(root_dir, 'Ring', 'ring.nii.gz')
 # print(list_files_with_key(root_dir, 'ring'))
 
+import csv
+import pydicom
+
+
+def extract_dicom_info(dicom_folder):
+    filter_type = "N/A"
+    body_part = "N/A"
+    convolution_kernel = "N/A"
+    cine_rate = "N/A"
+    contrast_bolus_agent = "N/A"
+
+    for dicom_file in os.listdir(dicom_folder):
+        dicom_file_path = os.path.join(dicom_folder, dicom_file)
+        if os.path.isfile(dicom_file_path) and dicom_file_path.lower().endswith('.dcm'):
+            try:
+                dicom_data = pydicom.dcmread(dicom_file_path)
+                filter_type = dicom_data.get("FilterType", "N/A")
+                body_part = dicom_data.get("BodyPartExamined", "N/A")
+                convolution_kernel = dicom_data.get("ConvolutionKernel", "N/A")
+                cine_rate = dicom_data.get("CineRate", "N/A")
+                contrast_bolus_agent = dicom_data.get("ContrastBolusAgent", "N/A")
+                break  # Stop after finding information in the first DICOM file
+            except Exception as e:
+                pass  # Continue if there's an error with the DICOM file
+
+    return filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent
+
+def list_folders(root_directory, output_csv):
+    with open(output_csv, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['Folder', 'Subfolder', 'Depth3Folder', 'FilterType', 'BodyPart', 'ConvolutionKernel', 'CineRate', 'ContrastBolusAgent'])
+
+        for folder in os.listdir(root_directory):
+            folder_path = os.path.join(root_directory, folder)
+
+            if os.path.isdir(folder_path):
+                for subfolder in os.listdir(folder_path):
+                    subfolder_path = os.path.join(folder_path, subfolder)
+
+                    if os.path.isdir(subfolder_path):
+                        for depth3_folder in os.listdir(subfolder_path):
+                            depth3_path = os.path.join(subfolder_path, depth3_folder)
+                            if os.path.isdir(depth3_path):
+                                filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent = extract_dicom_info(depth3_path)
+                                csv_writer.writerow([folder, subfolder, depth3_folder, filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent])
+
 
 def generate_texture_config(root_directory, output_file):
     with open(output_file, 'w') as config_file:
@@ -265,9 +311,15 @@ def generate_texture_config(root_directory, output_file):
 
 
 
-root_dir = '/media/adamdiakite/LaCie/Patients_Groupe_A'
-output_file = '/home/adamdiakite/Bureau/gpA.txt'
+root_dir = '/media/adamdiakite/LaCie/Patients_Groupe_BC'
+output_file = '/home/adamdiakite/Bureau/gpBf.txt'
 
 generate_texture_config(root_dir, output_file)
 
 # copy_folders_with_subfolder_structure('/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS', 'Paren','/media/adamdiakite/LaCie/Patients_Groupe_A' )
+
+# Example usage:
+# root_directory = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
+# output_csv = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS/folder_list_dicom.csv'
+#
+# list_folders(root_directory, output_csv)
