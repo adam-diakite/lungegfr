@@ -316,10 +316,10 @@ output_file = '/home/adamdiakite/Bureau/gpBf.txt'
 
 generate_texture_config(root_dir, output_file)
 
-# copy_folders_with_subfolder_structure('/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS', 'Paren','/media/adamdiakite/LaCie/Patients_Groupe_A' )
+copy_folders_with_subfolder_structure('/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS', 'Paren','/media/adamdiakite/LaCie/Patients_Groupe_A' )
 
-# Example usage:
-# root_directory = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
-# output_csv = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS/folder_list_dicom.csv'
-#
-# list_folders(root_directory, output_csv)
+Example usage:
+root_directory = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
+output_csv = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS/folder_list_dicom.csv'
+
+list_folders(root_directory, output_csv)
