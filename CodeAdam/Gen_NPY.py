@@ -2,8 +2,8 @@ import os
 import numpy as np
 from PIL import Image
 
-folder = "/media/adamdiakite/LaCie/CT-TEP_ICI"
-dest = "/media/adamdiakite/LaCie/CT-TEP_ICI/NPY"
+folder = "/media/lito/LaCie/tempp/"
+dest = "/media/lito/LaCie/tempp/NPY"
 
 
 def check_png_folders(root_folder):

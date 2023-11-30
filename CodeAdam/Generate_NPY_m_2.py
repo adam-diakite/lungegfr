@@ -217,6 +217,6 @@ def process_png_folders_areas(root_folder, output_folder):
 
 
 if __name__ == "__main__":
-    folder_ICI = "/media/adamdiakite/LaCie/CT-TEP_ICI"
-    dest_ICI = "/media/adamdiakite/LaCie/CT-TEP_ICI/NPY"
+    folder_ICI = "/media/lito/LaCie/tempp/"
+    dest_ICI = "/media/lito/LaCie/tempp/NPY"
     process_png_folders_areas(folder_ICI, dest_ICI)

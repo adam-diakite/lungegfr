@@ -4,9 +4,9 @@ from ipywidgets import interact
 import numpy as np
 from matplotlib.widgets import Slider
 # Example usage:
-ct_nii_file = "/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0004/Images/CTnii/2_body-low_dose_ct.nii.gz"
-pet_nii_file = "/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0004/Images/PETnii/2-21-0004_pet_float32_SUVbw.nii.gz"
-segmentation_nii_file = "/media/adamdiakite/LaCie/CT-TEP_Data/2-21-0004/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz"
+ct_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/Images/CTnii/2_body-low_dose_ct.nii.gz"
+pet_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/Images/PETnii/2-21-0004_pet_float32_SUVbw.nii.gz"
+segmentation_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz"
 def print_header(nii_file):
     nifti_data = nib.load(nii_file)
     header = nifti_data.header

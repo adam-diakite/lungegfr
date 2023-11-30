@@ -12,10 +12,8 @@ from matplotlib.widgets import Slider
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import logging
 from tqdm import tqdm
-def normalization_img(img):
-    """Apply normalization to the image."""
-    img = img / 255.0
-    return img
+
+logging.basicConfig(level=logging.INFO)
 
 def nifti_processing(root_folder):
     patients_info = []
@@ -89,9 +87,9 @@ def nifti_processing(root_folder):
                         "tumor_area": tumor_area
                     }
                     patients_info.append(patient_info)
-                except (EOFError, FileNotFoundError):
+                except (EOFError, FileNotFoundError, MemoryError):
                     patients_with_error.append(root)
-                    print(f"Error: Skipping patient {root} due to missing or incomplete NIfTI files.")
+                    print(f"Error: Skipping patient {root} due to missing or incomplete NIfTI files or memory issues.")
                     continue
 
     if patients_with_error:
@@ -121,6 +119,11 @@ def normalize_image(image):
     image_range = image_max - image_min
     image_normalized = ((image - image_min) / image_range) * 255
     return image_normalized.astype(np.uint8)
+
+def normalization_img(img):
+    """Apply normalization to the image."""
+    img = img / 255.0
+    return img
 
 def save_image_as_png(image, output_folder, filename):
     image_normalized = normalize_image(image)
@@ -166,6 +169,7 @@ def save_ct_pet_images(patient_info):
 
         img = Image.fromarray(image_normalized_flipped)
         img.save(os.path.join(output_folder, filename))
+        print(f"Saved slice {filename} in {output_folder}")
 
     n_slices = ct_tumor.shape[2] + pet_tumor.shape[2]
 
@@ -182,18 +186,12 @@ def save_ct_pet_images(patient_info):
             pbar.update(1)
         pbar.close()
 
-
+    save_images_with_progress()
 
     logging.info(f"All images saved for patient {patient_info['patient']}.")
 
 
-def process_patient_folder(patient_folder):
-    patients_info = nifti_processing(patient_folder)
-    num_patients = len(patients_info)
-    for i, patient_info in enumerate(patients_info, 1):
-        logging.info(f"Processing patient {i}/{num_patients}")
-        save_ct_pet_images(patient_info)
-        logging.info(f"All images saved for patient {patient_info['patient']}.")
+
 
 
 def display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file):
@@ -249,8 +247,25 @@ def display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file):
     plt.show()
 
 
+def process_patient_folder(patient_folder):
+    images_folder = os.path.join(patient_folder, "Images")
+    ct_png_folder = os.path.join(images_folder, "CT_PNG")
+    pet_png_folder = os.path.join(images_folder, "PET_PNG")
+
+    # Check if the CT_PNG and PET_PNG folders already exist, if yes, skip the patient
+    if os.path.exists(ct_png_folder) and os.path.exists(pet_png_folder):
+        logging.info(f"Patient {patient_folder} already has CT_PNG and PET_PNG folders. Skipping.")
+        return
+
+    patients_info = nifti_processing(patient_folder)
+    num_patients = len(patients_info)
+    for i, patient_info in enumerate(patients_info, 1):
+        logging.info(f"Processing patient {i}/{num_patients}")
+        save_ct_pet_images(patient_info)
+        logging.info(f"All images saved for patient {patient_info['patient']}.")
+
 if __name__ == "__main__":
-    root_folder = "/media/adamdiakite/LaCie/tempp"
+    root_folder = "/media/lito/LaCie/tempp/"
 
     num_patients = len(os.listdir(root_folder))
     for i, folder_name in enumerate(os.listdir(root_folder), 1):
@@ -261,3 +276,8 @@ if __name__ == "__main__":
 
     logging.info("All patients processed.")
 
+#
+# ct_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/Images/CTnii/2_body-low_dose_ct.nii.gz"
+# pet_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/Images/PETnii/2-21-0004_pet_float32_SUVbw.nii.gz"
+# segmentation_nii_file = "/media/lito/LaCie/CT-TEP_TKI/2-21-0004/segmentation/PRIMITIF_PULM_Abs_thres4.0to999.0.uint16.nii.gz"
+# display_nifti_slices(ct_nii_file, pet_nii_file, segmentation_nii_file)
