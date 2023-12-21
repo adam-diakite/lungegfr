@@ -1,109 +1,123 @@
-import os
+import pickle
 import shutil
-
-import os
-import pydicom
 import dicom2nifti
 import re
-
 import pandas as pd
+import csv
+import pydicom
+import os
+
+import numpy as np
+import matplotlib.pyplot as plt
+from lifelines import CoxPHFitter
+from sklearn.model_selection import KFold
+from tqdm import tqdm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from lifelines import CoxPHFitter
+import seaborn as sns
+from lifelines import CoxPHFitter
+from sklearn.model_selection import KFold
+from collections import defaultdict
+
+import warnings
 
 
 columns_to_check = {'MORPHOLOGICAL_ApproximateVolume(IBSI:YEKZ)[mm3]'
-,'MORPHOLOGICAL_SurfaceArea(IBSI:C0JK)[mm2]'
-,'MORPHOLOGICAL_SurfaceToVolumeRatio(IBSI:2PR5)[mm]'
-,'MORPHOLOGICAL_Compactness1(IBSI:SKGS)[]'
-,'MORPHOLOGICAL_RadiusSphereNorm-MaxIntensityCoor-RoiCentroidCoor-Dist(IBSI:No)[]'
-,'MORPHOLOGICAL_RadiusSphereNorm-MaxIntensityCoor-PerimeterCoor-3DSmallestDist(IBSI:No)[]'
-,'MORPHOLOGICAL_Maximum3DDiameter(IBSI:L0JK)[mm]'
-,'INTENSITY-BASED_MeanIntensity(IBSI:Q4LE)[]'
-,'INTENSITY-BASED_IntensityVariance(IBSI:ECT3)[]'
-,'INTENSITY-BASED_IntensitySkewness(IBSI:KE2A)[]'
-,'INTENSITY-BASED_IntensityKurtosis(IBSI:IPH6)[]'
-,'INTENSITY-BASED_MedianIntensity(IBSI:Y12H)[]'
-,'INTENSITY-BASED_25thIntensityPercentile(IBSI:No)[]'
-,'INTENSITY-BASED_50thIntensityPercentile(IBSI:Y12H)[]'
-,'INTENSITY-BASED_75thIntensityPercentile(IBSI:No)[]'
-,'INTENSITY-BASED_StandardDeviation(IBSI:No)[]'
-,'INTENSITY-BASED_IntensityInterquartileRange(IBSI:SALO)[]'
-,'INTENSITY-BASED_IntensityRange(IBSI:2OJQ)[]'
-,'INTENSITY-BASED_IntensityBasedCoefficientOfVariation(IBSI:7TET)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramMean(IBSI:X6K6)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramVariance(IBSI:CH89)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramSkewness(IBSI:88K1)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramKurtosis(IBSI:C3I7)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramMedian(IBSI:WIFQ)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramMinimumGreyLevel(IBSI:1PR8)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogram10thPercentile(IBSI:GPMT)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogram25thPercentile(IBSI:No)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogram50thPercentile(IBSI:No)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogram75thPercentile(IBSI:No)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogram90thPercentile(IBSI:OZ0C)[]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramStd(IBSI:No)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramMaximumGreyLevel(IBSI:3NCY)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramInterquartileRange(IBSI:WR0O)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramRange(IBSI:5Z3W)[Intensity]'
-,'INTENSITY-HISTOGRAM_IntensityHistogramCoefficientOfVariation(IBSI:CWYJ)[Intensity]'
-,'GLCM_JointMaximum(IBSI:GYBY)'
-,'GLCM_JointAverage(IBSI:60VM)'
-,'GLCM_JointVariance(IBSI:UR99)'
-,'GLCM_JointVariance(IBSI:UR99)'
-,'GLCM_JointEntropyLog2(IBSI:TU9B)'
-,'GLCM_JointEntropyLog10(IBSI:No)'
-,'GLCM_DifferenceAverage(IBSI:TF7R)'
-,'GLCM_DifferenceVariance(IBSI:D3YU)'
-,'GLCM_DifferenceEntropy(IBSI:NTRS)'
-,'GLCM_SumAverage(IBSI:ZGXS)'
-,'GLCM_SumVariance(IBSI:OEEB)'
-,'GLCM_SumEntropy(IBSI:P6QZ)'
-,'GLCM_AngularSecondMoment(IBSI:8ZQL)'
-,'GLCM_Contrast(IBSI:ACUI)'
-,'GLCM_Dissimilarity(IBSI:8S9J)'
-,'GLCM_InverseDifference(IBSI:IB1Z)'
-,'GLCM_NormalisedInverseDifference(IBSI:NDRX)'
-,'GLCM_InverseDifferenceMoment(IBSI:WF0Z)'
-,'GLCM_NormalisedInverseDifferenceMoment(IBSI:1QCO)'
-,'GLCM_InverseVariance(IBSI:E8JP)'
-,'GLCM_Correlation(IBSI:NI2N)'
-,'GLCM_Autocorrelation(IBSI:QWB0)'
-,'GLCM_ClusterTendency(IBSI:DG8W)'
-,'GLCM_ClusterShade(IBSI:7NFM)'
-,'GLCM_ClusterProminence(IBSI:AE86)'
-,'GLRLM_ShortRunsEmphasis(IBSI:22OV)'
-,'GLRLM_ShortRunsEmphasis(IBSI:22OV)'
-,'GLRLM_LowGreyLevelRunEmphasis(IBSI:V3SW)'
-,'GLRLM_HighGreyLevelRunEmphasis(IBSI:G3QZ)'
-,'GLRLM_ShortRunLowGreyLevelEmphasis(IBSI:HTZT)'
-,'GLRLM_ShortRunHighGreyLevelEmphasis(IBSI:GD3A)'
-,'GLRLM_LongRunLowGreyLevelEmphasis(IBSI:IVPO)'
-,'GLRLM_LongRunHighGreyLevelEmphasis(IBSI:3KUM)'
-,'GLRLM_GreyLevelNonUniformity(IBSI:R5YN)'
-,'GLRLM_RunLengthNonUniformity(IBSI:W92Y)'
-,'GLRLM_RunPercentage(IBSI:9ZK5)'
-,'NGTDM_Coarseness(IBSI:QCDE)'
-,'NGTDM_Contrast(IBSI:65HE)'
-,'NGTDM_Busyness(IBSI:NQ30)'
-,'NGTDM_Complexity(IBSI:HDEZ)'
-,'NGTDM_Strength(IBSI:1X9X)'
-,'GLSZM_SmallZoneEmphasis(IBSI:5QRC)'
-,'GLSZM_LargeZoneEmphasis(IBSI:48P8)'
-,'GLSZM_LowGrayLevelZoneEmphasis(IBSI:XMSY)'
-,'GLSZM_HighGrayLevelZoneEmphasis(IBSI:5GN9)'
-,'GLSZM_SmallZoneLowGreyLevelEmphasis(IBSI:5RAI)'
-,'GLSZM_SmallZoneHighGreyLevelEmphasis(IBSI:HW1V)'
-,'GLSZM_LargeZoneLowGreyLevelEmphasis(IBSI:YH51)'
-,'GLSZM_LargeZoneHighGreyLevelEmphasis(IBSI:J17V)'
-,'GLSZM_GreyLevelNonUniformity(IBSI:JNSA)'
-,'GLSZM_NormalisedGreyLevelNonUniformity(IBSI:Y1RO)'
-,'GLSZM_ZoneSizeNonUniformity(IBSI:4JP3)'
-,'GLSZM_NormalisedZoneSizeNonUniformity(IBSI:VB3A)'
-,'GLSZM_ZonePercentage(IBSI:P30P)'
-,'GLSZM_GreyLevelVariance(IBSI:BYLV)'
-,'GLSZM_ZoneSizeVariance(IBSI:3NSA)'
-,'GLSZM_ZoneSizeEntropy(IBSI:GU8N)'}
-
+    , 'MORPHOLOGICAL_SurfaceArea(IBSI:C0JK)[mm2]'
+    , 'MORPHOLOGICAL_SurfaceToVolumeRatio(IBSI:2PR5)[mm]'
+    , 'MORPHOLOGICAL_Compactness1(IBSI:SKGS)[]'
+    , 'MORPHOLOGICAL_RadiusSphereNorm-MaxIntensityCoor-RoiCentroidCoor-Dist(IBSI:No)[]'
+    , 'MORPHOLOGICAL_RadiusSphereNorm-MaxIntensityCoor-PerimeterCoor-3DSmallestDist(IBSI:No)[]'
+    , 'MORPHOLOGICAL_Maximum3DDiameter(IBSI:L0JK)[mm]'
+    , 'INTENSITY-BASED_MeanIntensity(IBSI:Q4LE)[]'
+    , 'INTENSITY-BASED_IntensityVariance(IBSI:ECT3)[]'
+    , 'INTENSITY-BASED_IntensitySkewness(IBSI:KE2A)[]'
+    , 'INTENSITY-BASED_IntensityKurtosis(IBSI:IPH6)[]'
+    , 'INTENSITY-BASED_MedianIntensity(IBSI:Y12H)[]'
+    , 'INTENSITY-BASED_25thIntensityPercentile(IBSI:No)[]'
+    , 'INTENSITY-BASED_50thIntensityPercentile(IBSI:Y12H)[]'
+    , 'INTENSITY-BASED_75thIntensityPercentile(IBSI:No)[]'
+    , 'INTENSITY-BASED_StandardDeviation(IBSI:No)[]'
+    , 'INTENSITY-BASED_IntensityInterquartileRange(IBSI:SALO)[]'
+    , 'INTENSITY-BASED_IntensityRange(IBSI:2OJQ)[]'
+    , 'INTENSITY-BASED_IntensityBasedCoefficientOfVariation(IBSI:7TET)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramMean(IBSI:X6K6)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramVariance(IBSI:CH89)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramSkewness(IBSI:88K1)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramKurtosis(IBSI:C3I7)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramMedian(IBSI:WIFQ)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramMinimumGreyLevel(IBSI:1PR8)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogram10thPercentile(IBSI:GPMT)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogram25thPercentile(IBSI:No)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogram50thPercentile(IBSI:No)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogram75thPercentile(IBSI:No)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogram90thPercentile(IBSI:OZ0C)[]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramStd(IBSI:No)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramMaximumGreyLevel(IBSI:3NCY)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramInterquartileRange(IBSI:WR0O)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramRange(IBSI:5Z3W)[Intensity]'
+    , 'INTENSITY-HISTOGRAM_IntensityHistogramCoefficientOfVariation(IBSI:CWYJ)[Intensity]'
+    , 'GLCM_JointMaximum(IBSI:GYBY)'
+    , 'GLCM_JointAverage(IBSI:60VM)'
+    , 'GLCM_JointVariance(IBSI:UR99)'
+    , 'GLCM_JointVariance(IBSI:UR99)'
+    , 'GLCM_JointEntropyLog2(IBSI:TU9B)'
+    , 'GLCM_JointEntropyLog10(IBSI:No)'
+    , 'GLCM_DifferenceAverage(IBSI:TF7R)'
+    , 'GLCM_DifferenceVariance(IBSI:D3YU)'
+    , 'GLCM_DifferenceEntropy(IBSI:NTRS)'
+    , 'GLCM_SumAverage(IBSI:ZGXS)'
+    , 'GLCM_SumVariance(IBSI:OEEB)'
+    , 'GLCM_SumEntropy(IBSI:P6QZ)'
+    , 'GLCM_AngularSecondMoment(IBSI:8ZQL)'
+    , 'GLCM_Contrast(IBSI:ACUI)'
+    , 'GLCM_Dissimilarity(IBSI:8S9J)'
+    , 'GLCM_InverseDifference(IBSI:IB1Z)'
+    , 'GLCM_NormalisedInverseDifference(IBSI:NDRX)'
+    , 'GLCM_InverseDifferenceMoment(IBSI:WF0Z)'
+    , 'GLCM_NormalisedInverseDifferenceMoment(IBSI:1QCO)'
+    , 'GLCM_InverseVariance(IBSI:E8JP)'
+    , 'GLCM_Correlation(IBSI:NI2N)'
+    , 'GLCM_Autocorrelation(IBSI:QWB0)'
+    , 'GLCM_ClusterTendency(IBSI:DG8W)'
+    , 'GLCM_ClusterShade(IBSI:7NFM)'
+    , 'GLCM_ClusterProminence(IBSI:AE86)'
+    , 'GLRLM_ShortRunsEmphasis(IBSI:22OV)'
+    , 'GLRLM_ShortRunsEmphasis(IBSI:22OV)'
+    , 'GLRLM_LowGreyLevelRunEmphasis(IBSI:V3SW)'
+    , 'GLRLM_HighGreyLevelRunEmphasis(IBSI:G3QZ)'
+    , 'GLRLM_ShortRunLowGreyLevelEmphasis(IBSI:HTZT)'
+    , 'GLRLM_ShortRunHighGreyLevelEmphasis(IBSI:GD3A)'
+    , 'GLRLM_LongRunLowGreyLevelEmphasis(IBSI:IVPO)'
+    , 'GLRLM_LongRunHighGreyLevelEmphasis(IBSI:3KUM)'
+    , 'GLRLM_GreyLevelNonUniformity(IBSI:R5YN)'
+    , 'GLRLM_RunLengthNonUniformity(IBSI:W92Y)'
+    , 'GLRLM_RunPercentage(IBSI:9ZK5)'
+    , 'NGTDM_Coarseness(IBSI:QCDE)'
+    , 'NGTDM_Contrast(IBSI:65HE)'
+    , 'NGTDM_Busyness(IBSI:NQ30)'
+    , 'NGTDM_Complexity(IBSI:HDEZ)'
+    , 'NGTDM_Strength(IBSI:1X9X)'
+    , 'GLSZM_SmallZoneEmphasis(IBSI:5QRC)'
+    , 'GLSZM_LargeZoneEmphasis(IBSI:48P8)'
+    , 'GLSZM_LowGrayLevelZoneEmphasis(IBSI:XMSY)'
+    , 'GLSZM_HighGrayLevelZoneEmphasis(IBSI:5GN9)'
+    , 'GLSZM_SmallZoneLowGreyLevelEmphasis(IBSI:5RAI)'
+    , 'GLSZM_SmallZoneHighGreyLevelEmphasis(IBSI:HW1V)'
+    , 'GLSZM_LargeZoneLowGreyLevelEmphasis(IBSI:YH51)'
+    , 'GLSZM_LargeZoneHighGreyLevelEmphasis(IBSI:J17V)'
+    , 'GLSZM_GreyLevelNonUniformity(IBSI:JNSA)'
+    , 'GLSZM_NormalisedGreyLevelNonUniformity(IBSI:Y1RO)'
+    , 'GLSZM_ZoneSizeNonUniformity(IBSI:4JP3)'
+    , 'GLSZM_NormalisedZoneSizeNonUniformity(IBSI:VB3A)'
+    , 'GLSZM_ZonePercentage(IBSI:P30P)'
+    , 'GLSZM_GreyLevelVariance(IBSI:BYLV)'
+    , 'GLSZM_ZoneSizeVariance(IBSI:3NSA)'
+    , 'GLSZM_ZoneSizeEntropy(IBSI:GU8N)'}
 
 columns_to_check = list(columns_to_check)
+
+
 def find_and_remove_folders_without_dcm_nii(root_folder):
     # Step 1: Collect directories with both DCM and NII files
     def contains_dcm_and_nii(dirpath):
@@ -211,9 +225,8 @@ def convert_dicom_series_to_nifti_recursive(root_folder):
                 nifti_filepath = os.path.join(dirpath, "scan.nii.gz")
                 dicom2nifti.write_nifti(nifti_image, nifti_filepath)
 
-#
-# path = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
-# convert_dicom_series_to_nifti_recursive(path)
+
+
 
 
 def list_folder_names_at_depth_2(root_dir):
@@ -232,13 +245,6 @@ def list_folder_names_at_depth_2(root_dir):
     return folder_names
 
 
-# root_directory = "/home/adamdiakite/Documents/Patients_Vincent"
-# folder_names_at_depth_2 = list_folder_names_at_depth_2(root_directory)
-#
-# for folder_name in folder_names_at_depth_2:
-#     print(folder_name)
-#
-# print(len(folder_names_at_depth_2))
 
 
 def group_folders_by_similarity(root_dir, min_common_length=5):
@@ -319,24 +325,6 @@ def copy_folders_with_subfolder_structure(root_directory, key, destination_direc
                         shutil.copy2(source_file, destination_file)
 
 
-# # Example usage:
-# root_dir = '/media/adamdiakite/LaCie/Patient_Vincent_Test'
-# key_to_replace = 'ring'
-# new_name = 'ring.nii.gz'
-#
-# renamed_files = rename_files_with_key(root_dir, key_to_replace, new_name)
-#
-# # Print the renamed file paths
-# for old_path, new_path in renamed_files:
-#     print(f'Renamed: {old_path} -> {new_path}')
-
-# rename_files_with_key(root_dir, 'Ring', 'ring.nii.gz')
-# print(list_files_with_key(root_dir, 'ring'))
-
-import csv
-import pydicom
-
-
 def extract_dicom_info(dicom_folder):
     filter_type = "N/A"
     body_part = "N/A"
@@ -360,10 +348,13 @@ def extract_dicom_info(dicom_folder):
 
     return filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent
 
+
 def list_folders(root_directory, output_csv):
     with open(output_csv, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(['Folder', 'Subfolder', 'Depth3Folder', 'FilterType', 'BodyPart', 'ConvolutionKernel', 'CineRate', 'ContrastBolusAgent'])
+        csv_writer.writerow(
+            ['Folder', 'Subfolder', 'Depth3Folder', 'FilterType', 'BodyPart', 'ConvolutionKernel', 'CineRate',
+             'ContrastBolusAgent'])
 
         for folder in os.listdir(root_directory):
             folder_path = os.path.join(root_directory, folder)
@@ -376,8 +367,11 @@ def list_folders(root_directory, output_csv):
                         for depth3_folder in os.listdir(subfolder_path):
                             depth3_path = os.path.join(subfolder_path, depth3_folder)
                             if os.path.isdir(depth3_path):
-                                filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent = extract_dicom_info(depth3_path)
-                                csv_writer.writerow([folder, subfolder, depth3_folder, filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent])
+                                filter_type, body_part, convolution_kernel, cine_rate, contrast_bolus_agent = extract_dicom_info(
+                                    depth3_path)
+                                csv_writer.writerow(
+                                    [folder, subfolder, depth3_folder, filter_type, body_part, convolution_kernel,
+                                     cine_rate, contrast_bolus_agent])
 
 
 def generate_texture_config(root_directory, output_file):
@@ -431,16 +425,11 @@ def compare_common_folders(folder1_path, folder2_path, common_folder_check_path)
     else:
         print("Everything is OK, all folders present.")
 
-# # Example usage:
-# folder1_path = "/media/lito/LaCie/Patients_Groupe_A/"
-# folder2_path = "/media/lito/LaCie/Patients_Groupe_B/"
-# common_folder_check_path = "/media/lito/LaCie/Patients_Groupe_both/"
-#
-# compare_common_folders(folder1_path, folder2_path, common_folder_check_path)
 
 
 
-import os
+
+
 
 def generate_texture_config_v3(root_directory, output_file):
     with open(output_file, 'w') as config_file:
@@ -463,70 +452,37 @@ def generate_texture_config_v3(root_directory, output_file):
                     config_file.write(f'LIFEx.Patient{patient_number}.Series0={scan_file}\n')
                     config_file.write(f'LIFEx.Patient{patient_number}.Roi0={roi_file}\n')
                     config_file.write(f'LIFEx.Patient{patient_number}.Roi0.Operation0=Ring,3|Save nii\n')
-                    config_file.write(f'LIFEx.Patient{patient_number}.Roi0.Operation0.Output.Directory={os.path.dirname(scan_file)}\n')
+                    config_file.write(
+                        f'LIFEx.Patient{patient_number}.Roi0.Operation0.Output.Directory={os.path.dirname(scan_file)}\n')
 
                     patient_number += 1
 
                 # Add two empty lines to separate patients
                 config_file.write("\n\n")
 
-# Example usage:
-# root_directory = "/media/lito/LaCie/Patients_Groupe_both/"
-# output_file = "/media/lito/LaCie/ring_gp_bothlesdeux.txt"
-#
-# generate_texture_config_v3(root_directory, output_file)
 
-
-
-
-
-
-# root_dir = '/media/lito/LaCie/miss/'
-# output_file = '/media/lito/LaCie/gp92.txt'
-#
-# generate_texture_config(root_dir, output_file)
-
-# copy_folders_with_subfolder_structure('/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS', 'Paren','/media/adamdiakite/LaCie/Patients_Groupe_A' )
-#
-# Example usage:
-# root_directory = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS'
-# output_csv = '/media/adamdiakite/LaCie/6-Lille_reformater_trier_contourer_VS/folder_list_dicom.csv'
-#
-# list_folders(root_directory, output_csv)
-
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-from lifelines import CoxPHFitter
-from sklearn.model_selection import KFold
-from tqdm import tqdm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from lifelines import CoxPHFitter
-import seaborn as sns
-from lifelines import CoxPHFitter
-from sklearn.model_selection import KFold
-from collections import defaultdict
-
-import warnings
 
 warnings.filterwarnings("ignore")
 
-
-binarized_values_df = pd.read_csv('/home/lito/Downloads/binarized_values_lung_a.csv')
-
-
+binarized_values_df = pd.read_csv('/home/lito/Downloads/binarized_values_both.csv')
 
 binarized_values_df['Status'] = (binarized_values_df['Status'] == 1).astype(int)
 print(binarized_values_df['Status'])
 
 X = binarized_values_df[columns_to_check]
-y =  binarized_values_df[['Status', 'Time']]
+y = binarized_values_df[['Status', 'Time']]
 
 
+import numpy as np
+import pandas as pd
+from lifelines import CoxPHFitter
+from sklearn.model_selection import KFold
+from tqdm import tqdm
+import warnings
 
+warnings.filterwarnings("ignore")
 
-def backward_cox_regression(X, y, threshold_out=0.05, min_features=4, verbose=False):
+def backward_cox_regression(X, y, threshold_out=0.05, min_features=1, verbose=False):
     included = list(X.columns)
 
     while len(included) > min_features:
@@ -560,6 +516,18 @@ def backward_cox_regression(X, y, threshold_out=0.05, min_features=4, verbose=Fa
     # Filter out features with p-values above the threshold
     selected_features = [feature for feature in included if cph.summary.loc[feature, 'p'] < threshold_out]
 
+    # If no features are selected, include the feature with the lowest p-value
+    if not selected_features:
+        best_feature = pvalues.idxmin()
+        selected_features.append(best_feature)
+
+    # Ensure at least the specified number of features are selected
+    while len(selected_features) < min_features:
+        for feature in included:
+            if feature not in selected_features:
+                selected_features.append(feature)
+                break
+
     print("\nSelected Features:")
     for feature in selected_features:
         p_value = cph.summary.loc[feature, 'p']
@@ -568,11 +536,13 @@ def backward_cox_regression(X, y, threshold_out=0.05, min_features=4, verbose=Fa
     return selected_features, c_index_final
 
 
-def forward_cox_regression(X, y, threshold_in, min_features=4, verbose=False):
+
+
+def forward_cox_regression(X, y, threshold_in=0.05, verbose=False):
     included = []
     cph = None  # Initialize cph outside the loop
 
-    while len(included) < min_features:
+    while True:
         changed = False
         best_pval = threshold_in
         best_feature = None
@@ -599,27 +569,60 @@ def forward_cox_regression(X, y, threshold_in, min_features=4, verbose=False):
 
             if verbose:
                 print('Add {:30} with p-value {:.6}'.format(best_feature, best_pval))
-        else:
+
+        # Print available features in new_cph.summary
+        print("Available features in new_cph.summary:", new_cph.summary.index)
+
+        # Break the loop when no more features can be added
+        if not changed:
             break
 
-    # Ensure at least one feature is selected
-    if len(included) == 0:
-        best_feature = X.columns[0]
-        included.append(best_feature)
-        if verbose:
-            print('Add {:30} with p-value {:.6}'.format(best_feature, best_pval))
-
-    selected_features = [feature for feature in included if cph and feature in cph.summary.index and cph.summary.loc[feature, 'p'] < threshold_in]
-
     # Calculate C-index for the final model
-    final_features = X[selected_features]
+    final_features = X[included]
     final_cph = CoxPHFitter(penalizer=0.1)
     final_cph.fit(pd.concat([final_features, pd.DataFrame(y, columns=['Status', 'Time'])], axis=1),
                   duration_col='Time', event_col='Status')
     c_index_final = final_cph.concordance_index_
 
-    return selected_features, c_index_final
+    return included, c_index_final
 
+
+def calculate_aic(X, y, selected_features):
+    X_selected = X[selected_features]
+    cph = CoxPHFitter(penalizer=0.1)
+    cph.fit(pd.concat([X_selected, pd.DataFrame(y, columns=['Status', 'Time'])], axis=1), duration_col='Time', event_col='Status')
+    aic = cph.AIC_partial_
+    return aic
+
+
+def backward_stepwise_aic(X, y):
+    included = list(X.columns)
+    best_aic = np.inf
+    selected_features = []
+
+    while len(included) > 0:
+        aic_values = []
+
+        for feature in included:
+            candidate_features = included.copy()
+            candidate_features.remove(feature)
+            aic = calculate_aic(X, y, candidate_features)
+            aic_values.append((feature, aic))
+
+        best_candidate, best_candidate_aic = min(aic_values, key=lambda x: x[1])
+
+        if best_candidate_aic < best_aic:
+            best_aic = best_candidate_aic
+            selected_features.append(best_candidate)
+            included.remove(best_candidate)
+        else:
+            break
+
+    cph = CoxPHFitter(penalizer=0.1)
+    cph.fit(pd.concat([X[selected_features], pd.DataFrame(y, columns=['Status', 'Time'])], axis=1), duration_col='Time', event_col='Status')
+    c_index = cph.concordance_index_
+
+    return selected_features, c_index
 
 
 def create_fixed_folds(X, n_splits=5, random_state=42):
@@ -627,8 +630,7 @@ def create_fixed_folds(X, n_splits=5, random_state=42):
     folds = list(kf.split(X))
     return folds
 
-
-def cross_validate_backward_selection(X, y, folds, threshold_out=0.05, n_iterations=10, verbose=False):
+def cross_validate_backward_selection(X, y, folds, threshold_out=0.05, n_iterations=10, verbose=True):
     c_index_list = []
     selected_features_list = []
     feature_count_dict = defaultdict(int)
@@ -638,12 +640,15 @@ def cross_validate_backward_selection(X, y, folds, threshold_out=0.05, n_iterati
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-            selected_features, c_index = backward_cox_regression(X_train, y_train, threshold_out, verbose)
+            selected_features, c_index = backward_cox_regression(X_train, y_train,threshold_out, min_features = 1)
 
             feature_count_dict[len(selected_features)] += 1
 
             c_index_list.append(c_index)
             selected_features_list.append(selected_features)
+
+            if verbose:
+                print(f"Iteration {iteration + 1}, Fold {fold + 1} - Selected Features: {selected_features}")
 
     return c_index_list, selected_features_list, feature_count_dict
 
@@ -657,14 +662,18 @@ def cross_validate_forward_selection(X, y, folds, threshold_in=0.05, n_iteration
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-            selected_features, c_index = forward_cox_regression(X_train, y_train, threshold_in, verbose)
+            selected_features, c_index = forward_cox_regression(X_train, y_train, threshold_in, verbose=True)
 
             feature_count_dict[len(selected_features)] += 1
 
             c_index_list.append(c_index)
             selected_features_list.append(selected_features)
 
+            if verbose:
+                print(f"Iteration {iteration + 1}, Fold {fold + 1} - Selected Features: {selected_features}")
+
     return c_index_list, selected_features_list, feature_count_dict
+
 
 
 def cross_validate_stepaic(X, y, folds, n_iterations=10, verbose=False):
@@ -691,8 +700,6 @@ def cross_validate_stepaic(X, y, folds, n_iterations=10, verbose=False):
             c_index_list.append(c_index)
 
     return c_index_list, selected_features_list, feature_count_dict
-
-
 
 
 
@@ -738,45 +745,6 @@ def cross_validate_vif(X, y, folds, n_iterations=10):
 
 
 
-
-def calculate_aic(X, y, selected_features):
-    X_selected = X[selected_features]
-    cph = CoxPHFitter(penalizer=0.1)
-    cph.fit(pd.concat([X_selected, pd.DataFrame(y, columns=['Status', 'Time'])], axis=1), duration_col='Time', event_col='Status')
-    aic = cph.AIC_partial_
-    return aic
-
-
-def backward_stepwise_aic(X, y):
-    included = list(X.columns)
-    best_aic = np.inf
-    selected_features = []
-
-    while len(included) > 0:
-        aic_values = []
-
-        for feature in included:
-            candidate_features = included.copy()
-            candidate_features.remove(feature)
-            aic = calculate_aic(X, y, candidate_features)
-            aic_values.append((feature, aic))
-
-        best_candidate, best_candidate_aic = min(aic_values, key=lambda x: x[1])
-
-        if best_candidate_aic < best_aic:
-            best_aic = best_candidate_aic
-            selected_features.append(best_candidate)
-            included.remove(best_candidate)
-        else:
-            break
-
-    cph = CoxPHFitter(penalizer=0.1)
-    cph.fit(pd.concat([X[selected_features], pd.DataFrame(y, columns=['Status', 'Time'])], axis=1), duration_col='Time', event_col='Status')
-    c_index = cph.concordance_index_
-
-    return selected_features, c_index
-
-
 #################################PLOTS###########################
 
 
@@ -789,7 +757,7 @@ def plot_feature_selection_frequency(selected_features_list, method_name):
     # Sort features by frequency
     feature_counts = feature_counts.sort_values(by='Frequency', ascending=False)
 
-    plt.figure(figsize=(20, 20))
+    plt.figure(figsize=(100, 300))
     sns.barplot(x='Frequency', y='Feature', data=feature_counts, palette='viridis')
     plt.title(f'Frequency of Feature Selection - {method_name}')
     plt.xlabel('Frequency')
@@ -801,24 +769,37 @@ def plot_c_index_histogram(c_index_list, method_name):
     mean_c_index = np.mean(c_index_list)
     std_c_index = np.std(c_index_list)
 
+    # Set up the plot
     plt.figure(figsize=(10, 6))
+    # Plot histogram with KDE
     sns.histplot(c_index_list, kde=True, color='skyblue', element='step')
-    plt.title(f'Distribution of C-Index - {method_name}\nMean C-Index: {mean_c_index:.4f}, Std: {std_c_index:.4f}')
-    plt.xlabel('Concordance Index (C-Index)')
-    plt.ylabel('Frequency')
-    plt.show()
 
+    # Add a line representing the evolution of the C-Index
+    plt.axvline(mean_c_index, color='red', linestyle='dashed', linewidth=2, label='Mean C-Index')
+
+    # Customize plot labels and title
+    plt.title(f'Distribution of C-Index - {method_name}\nMean C-Index: {mean_c_index:.4f}, Std: {std_c_index:.4f}', fontsize=14)
+    plt.xlabel('Concordance Index (C-Index)', fontsize=12)
+    plt.ylabel('Frequency', fontsize=12)
+
+    # Add legend
+    plt.legend()
+
+    # Display the plot
+    plt.show()
 
 
 def plot_feature_count(feature_count_dict, method_name):
     feature_counts = sorted(feature_count_dict.items())
 
     plt.figure(figsize=(10, 6))
-    sns.barplot(x=[str(count) for count, _ in feature_counts], y=[count for _, count in feature_counts], color='skyblue')
+    sns.barplot(x=[str(count) for count, _ in feature_counts], y=[count for _, count in feature_counts],
+                color='skyblue')
     plt.title(f'Number of Models vs Number of Selected Features - {method_name}')
     plt.xlabel('Number of Selected Features')
     plt.ylabel('Number of Models')
     plt.show()
+
 
 def plot_cindex_boxplot(c_index_lists, method_names):
     plt.figure(figsize=(15, 8))
@@ -839,7 +820,6 @@ def plot_cindex_boxplot(c_index_lists, method_names):
     plt.xlabel('Feature Selection Method')
     plt.ylabel('C-Index')
     plt.show()
-
 
 
 def plot_cindex_vs_features(c_index_lists, method_names):
@@ -866,17 +846,25 @@ def plot_cindex_vs_features(c_index_lists, method_names):
     plt.show()
 
 
+
+
 folds = create_fixed_folds(X, n_splits=5, random_state=42)
 
 iterations = 10
 
+# Forward Selection
 c_index_list_forward, selected_features_list_forward, feature_count_dict_forward = cross_validate_forward_selection(X, y, folds, threshold_in=0.05, n_iterations=iterations, verbose=True)
+
+# VIF-based Selection
 c_index_list_vif, selected_features_list_vif, feature_count_dict_vif = cross_validate_vif(X, y, folds, n_iterations=iterations)
+
+# StepAIC
 c_index_list_stepaic, selected_features_list_stepaic, feature_count_dict_stepaic = cross_validate_stepaic(X, y, folds, n_iterations=iterations, verbose=True)
+
+# # Backward Selection
 c_index_list_backward, selected_features_list_backward, feature_count_dict_backward = cross_validate_backward_selection(X, y, folds, threshold_out=0.05, n_iterations=iterations, verbose=True)
 
-
-with open('/home/lito/Desktop/grp_a_lists.pkl', 'wb') as file:
+with open('/home/lito/Desktop/grp_a_lists_folds_both.pkl', 'wb') as file:
     data_to_save = {
         'forward': (c_index_list_forward, selected_features_list_forward, feature_count_dict_forward),
         'vif': (c_index_list_vif, selected_features_list_vif, feature_count_dict_vif),
@@ -885,36 +873,26 @@ with open('/home/lito/Desktop/grp_a_lists.pkl', 'wb') as file:
     }
     pickle.dump(data_to_save, file)
 
-# # Load the data
-# with open('.pkl', 'rb') as file:
-#     loaded_data = pickle.load(file)
 
-# # Access the loaded data
-# loaded_c_index_list_forward, loaded_selected_features_list_forward, loaded_feature_count_dict_forward = loaded_data['forward']
-
-plot_feature_selection_frequency(selected_features_list_backward, 'Backward Selection')
-plot_feature_selection_frequency(selected_features_list_forward, 'Forward Selection')
-plot_feature_selection_frequency(selected_features_list_vif, 'VIF Selection')
-plot_feature_selection_frequency(selected_features_list_stepaic, 'Backward Stepwise AIC')
-
-plot_c_index_histogram(c_index_list_backward, 'Backward Selection')
-plot_c_index_histogram(c_index_list_forward, 'Forward Selection')
-plot_c_index_histogram(c_index_list_vif, 'VIF Selection')
-plot_c_index_histogram(c_index_list_stepaic, 'Backward Stepwise AIC')
-
-plot_feature_count(feature_count_dict_backward, 'Backward Selection')
-plot_feature_count(feature_count_dict_forward, 'Forward Selection')
-plot_feature_count(feature_count_dict_vif, 'VIF-based Selection')
-plot_feature_count(feature_count_dict_stepaic, 'Backward Stepwise AIC')
-
-plot_cindex_boxplot([c_index_list_1, c_index_list_2, c_index_list_3, c_index_list_4],
-                    ['Method 1', 'Method 2', 'Method 3', 'Method 4'])
-
-plot_cindex_boxplot([c_index_list_backward, c_index_list_forward, c_index_list_vif, c_index_list_stepaic],
-                    ['Backward Stepwise', 'Forward Stepwise', 'VIF', 'Backward Stepwise AIC'])
-
-
-plot_cindex_vs_features(c_index_list_backward, feature_count_dict_backward, 'Backward Selection')
-plot_cindex_vs_features(c_index_list_forward, feature_count_dict_forward, 'Forward Selection')
-plot_cindex_vs_features(c_index_list_vif, feature_count_dict_vif, 'VIF Selection')
-plot_cindex_vs_features(c_index_list_stepaic, feature_count_dict_stepaic, 'Stepwise AIC')
+# plot_feature_selection_frequency(selected_features_list_backward, 'Backward Selection')
+# # plot_feature_selection_frequency(selected_features_list_forward, 'Forward Selection')
+# plot_feature_selection_frequency(selected_features_list_vif, 'VIF Selection')
+# plot_feature_selection_frequency(selected_features_list_stepaic, 'Backward Stepwise AIC')
+#
+# plot_c_index_histogram(c_index_list_backward, 'Backward Selection')
+# plot_c_index_histogram(c_index_list_forward, 'Forward Selection')
+# plot_c_index_histogram(c_index_list_vif, 'VIF Selection')
+# plot_c_index_histogram(c_index_list_stepaic, 'Backward Stepwise AIC')
+#
+# plot_feature_count(feature_count_dict_backward, 'Backward Selection')
+# plot_feature_count(feature_count_dict_forward, 'Forward Selection')
+# plot_feature_count(feature_count_dict_vif, 'VIF-based Selection')
+# plot_feature_count(feature_count_dict_stepaic, 'Backward Stepwise AIC')
+#
+# plot_cindex_boxplot([c_index_list_backward, c_index_list_forward, c_index_list_vif, c_index_list_stepaic],
+#                     ['Backward Stepwise', 'Forward Stepwise', 'VIF', 'Backward Stepwise AIC'])
+#
+# plot_cindex_vs_features(c_index_list_backward, feature_count_dict_backward, 'Backward Selection')
+# plot_cindex_vs_features(c_index_list_forward, feature_count_dict_forward, 'Forward Selection')
+# plot_cindex_vs_features(c_index_list_vif, feature_count_dict_vif, 'VIF Selection')
+# plot_cindex_vs_features(c_index_list_stepaic, feature_count_dict_stepaic, 'Stepwise AIC')
